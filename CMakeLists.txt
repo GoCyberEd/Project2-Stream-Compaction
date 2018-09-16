@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.1)
 project(cis565_stream_compaction_test)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 # Enable C++11 for host code
 set(CMAKE_CXX_STANDARD 11)
