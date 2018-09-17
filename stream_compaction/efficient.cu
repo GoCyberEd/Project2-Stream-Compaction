@@ -3,8 +3,6 @@
 #include "common.h"
 #include "efficient.h"
 
-#define BLOCK_SIZE 256
-
 namespace StreamCompaction {
     namespace Efficient {
 
@@ -20,35 +18,39 @@ namespace StreamCompaction {
 
         __global__ void kernUpSweep(int n, int pow, int pow1, int data[]) {
         	int idx = threadIdx.x + (blockIdx.x * blockDim.x);
-        	if (idx > n) {
-        		return;
-        	}
-        	if (idx * pow1 > n){
+        	if (idx >= n) {
         		return;
         	}
 
-        	data[(idx + 1) * pow1 - 1] += data[(idx + 1) * pow1 - 1 - pow];
+        	int i = idx * pow1;
+        	if (i < n) {
+        		data[i + pow1 - 1] += data[i + pow - 1];
+        	}
         }
 
         __global__ void kernDownSweep(int n, int pow, int pow1, int data[]) {
         	int idx = threadIdx.x + (blockIdx.x * blockDim.x);
-        	if (idx > n) { return; }
+        	if (idx >= n) { return; }
 
-        	int aux = data[pow1];
-        	data[pow1] += data[pow1 - pow];
-        	data[pow1 - pow] = aux;
+        	int i = idx * pow1;
+        	if (i < n) {
+        		// Swap and sum
+        		int aux = data[i + pow - 1];
+        		data[i + pow - 1] = data[i + pow1 - 1];
+        		data[i + pow1 - 1] += aux;
+        	}
         }
 
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-        	int logValue = ilog2ceil(n);
-        	int pown = std::pow(2, logValue);
+        	int ceil = ilog2ceil(n);
+        	int ceilN = 1 << ceil;
 
-        	cudaMalloc((void**) &dev_idata, pown * sizeof(int));
+        	cudaMalloc((void**) &dev_idata, ceilN * sizeof(int));
         	cudaMemset(dev_idata, 0, n * sizeof(int));
-        	cudaMalloc((void**) &dev_odata, pown * sizeof(int));
+        	cudaMalloc((void**) &dev_odata, ceilN * sizeof(int));
 
         	cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
         	//cudaMemcpy(dev_odata, dev_idata, n * sizeof(int), cudaMemcpyDeviceToDevice);
@@ -61,17 +63,19 @@ namespace StreamCompaction {
             // 1. upsweep (note it updates in place, hopefully this is okay? Just summing)
             // 2. Reset end of array to 0
             // 3. Downsweep
-            for (int d = 0; d < logValue; d++) {
-            	pow = std::pow(2, d);
-            	pow1 = std::pow(2, d + 1);
-            	blocksPerGrid = (pown / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
-            	kernUpSweep<<< blocksPerGrid, BLOCK_SIZE >>>(pown, pow, pow1, dev_idata);
+            for (int d = 0; d < ceil; d++) {
+            	//pow = std::pow(2, d);
+            	//pow1 = std::pow(2, d + 1);
+            	pow = 1 << d;
+            	pow1 = 1 << (d + 1);
+            	blocksPerGrid = (ceilN / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            	kernUpSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_idata);
             }
-            for (int d = 0; d < logValue; d++) {
-            	pow = std::pow(2, d);
-            	pow1 = std::pow(2, d + 1);
-            	blocksPerGrid = (pown / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
-            	kernDownSweep<<< blocksPerGrid, BLOCK_SIZE >>>(pown, pow, pow1, dev_idata);
+            for (int d = 0; d < ceil; d++) {
+            	pow = 1 << d;
+            	pow1 = 1 << (d + 1);
+            	blocksPerGrid = (ceilN / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            	kernDownSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_idata);
             }
             timer().endGpuTimer();
 
