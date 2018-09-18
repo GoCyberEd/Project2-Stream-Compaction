@@ -35,5 +35,17 @@ namespace StreamCompaction {
             // TODO
         }
 
+        __global__ void kernConvertScanToExclusive(int n, int exclusiveScan[], const int inclusiveScan[]) {
+        	int idx = threadIdx.x + (blockIdx.x * blockDim.x);
+        	if (idx >= n) {
+        		return;
+        	} else if (idx >= 1) {
+        		exclusiveScan[idx] = inclusiveScan[idx - 1];
+        		return;
+        	}
+
+        	exclusiveScan[0] = 0;
+        }
+
     }
 }
