@@ -22,6 +22,8 @@ Compaction is useful to reduce the size if only the true values matter. Think of
 
 Memory operations such as `malloc` or `memset` were excluded from the results. In the case of compaction, only the final step (scatter) is timed. Any preliminary data formatting (for example to get the boolean array or scanning to get the proper indices) is not included in the time. Unless otherwise stated, a block size of 1024 was used throughout the analysis. 
 
+The timing data displayed below is an average across two runs. Ideally, there would be a much higher number of trials, though in practice the timings did not change much. 
+
 #### Analysis
 
 Large block sizes perform the best. This is likely because each thread does very little work. Specifically, a block size of 1024 was chosen. See the graphs below for a comparison.
