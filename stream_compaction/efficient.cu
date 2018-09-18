@@ -99,10 +99,33 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
+            int * dev_bools;
+            int * dev_indices;
+            int * dev_scatter;
+            int * dev_input;
+            cudaMalloc((void**) &dev_bools, n * sizeof(int));
+            cudaMalloc((void**) &dev_indices, n * sizeof(int));
+            cudaMalloc((void**) &dev_scatter, n * sizeof(int));
+            cudaMalloc((void**) &dev_input, n * sizeof(int));
+            cudaMemcpy(dev_input, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+
+            int host_indices[n];
+            int host_bools[n];
+
+        	int blocksPerGrid = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+        	// 1. Create boolean array
+            Common::kernMapToBoolean<<< blocksPerGrid, BLOCK_SIZE  >>>(n, dev_bools, dev_input);
+            cudaMemcpy(host_bools, dev_bools, n * sizeof(int), cudaMemcpyDeviceToHost);
+            // 2. Scan to generate indices
+            scan(n, host_indices, host_bools);
+            cudaMemcpy(dev_indices, host_indices, n * sizeof(int), cudaMemcpyHostToDevice);
+            // 3. Scatter
             timer().startGpuTimer();
-            // TODO
+            Common::kernScatter<<< blocksPerGrid, BLOCK_SIZE >>>(n, dev_scatter, dev_input, dev_bools, dev_indices);
             timer().endGpuTimer();
-            return -1;
+
+            return host_indices[n-1];
         }
     }
 }
