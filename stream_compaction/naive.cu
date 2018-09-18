@@ -3,8 +3,6 @@
 #include "common.h"
 #include "naive.h"
 
-#define BLOCK_SIZE 256
-
 namespace StreamCompaction {
     namespace Naive {
     	int* naive_idata;

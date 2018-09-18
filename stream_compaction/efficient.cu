@@ -48,9 +48,12 @@ namespace StreamCompaction {
         	int ceilN = 1 << ceil;
 
         	cudaMalloc((void**) &dev_data, ceilN * sizeof(int));
+        	checkCUDAError("malloc dev_data failed");
         	cudaMemset(dev_data, 0, n * sizeof(int));
+        	checkCUDAError("cudaMemset to clear array failed");
 
         	cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+        	checkCUDAError("cudaMemcpy input host to device failed");
         	//cudaMemcpy(dev_odata, dev_idata, n * sizeof(int), cudaMemcpyDeviceToDevice);
 
         	int pow, pow1, blocksPerGrid;
@@ -68,11 +71,14 @@ namespace StreamCompaction {
             	pow1 = 1 << (d + 1);
             	blocksPerGrid = (ceilN / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
             	kernUpSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_data);
+            	checkCUDAError("kernUpSweep failed");
             }
 
             // Reset last value
-            int z = 0;
-            cudaMemcpy(dev_data + ceilN - 1, &z, sizeof(int), cudaMemcpyHostToDevice);
+            //int z = 0;
+            //cudaMemcpy(dev_data + ceilN - 1, &z, sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemset(dev_data + ceilN - 1, 0, sizeof(int));
+            checkCUDAError("cudaMemcpy zero failed");
             //dev_data[ceilN - 1] = 0;
 
             //for (int d = 0; d < ceil; d++) { start at end instead
@@ -81,10 +87,12 @@ namespace StreamCompaction {
             	pow1 = 1 << (d + 1);
             	blocksPerGrid = (ceilN / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
             	kernDownSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_data);
+            	checkCUDAError("kernDownSweep failed");
             }
             timer().endGpuTimer();
 
             cudaMemcpy(odata, dev_data, n * sizeof(int), cudaMemcpyDeviceToHost);
+            checkCUDAError("memcpy answer to host failed");
 
             cudaFree(dev_data);
         }
