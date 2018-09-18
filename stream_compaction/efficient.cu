@@ -6,8 +6,7 @@
 namespace StreamCompaction {
     namespace Efficient {
 
-    	int * dev_idata;
-    	int * dev_odata;
+    	int * dev_data;
 
         using StreamCompaction::Common::PerformanceTimer;
         PerformanceTimer& timer()
@@ -48,11 +47,10 @@ namespace StreamCompaction {
         	int ceil = ilog2ceil(n);
         	int ceilN = 1 << ceil;
 
-        	cudaMalloc((void**) &dev_idata, ceilN * sizeof(int));
-        	cudaMemset(dev_idata, 0, n * sizeof(int));
-        	cudaMalloc((void**) &dev_odata, ceilN * sizeof(int));
+        	cudaMalloc((void**) &dev_data, ceilN * sizeof(int));
+        	cudaMemset(dev_data, 0, n * sizeof(int));
 
-        	cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+        	cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyHostToDevice);
         	//cudaMemcpy(dev_odata, dev_idata, n * sizeof(int), cudaMemcpyDeviceToDevice);
 
         	int pow, pow1, blocksPerGrid;
@@ -69,20 +67,26 @@ namespace StreamCompaction {
             	pow = 1 << d;
             	pow1 = 1 << (d + 1);
             	blocksPerGrid = (ceilN / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
-            	kernUpSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_idata);
+            	kernUpSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_data);
             }
-            for (int d = 0; d < ceil; d++) {
+
+            // Reset last value
+            int z = 0;
+            cudaMemcpy(dev_data + ceilN - 1, &z, sizeof(int), cudaMemcpyHostToDevice);
+            //dev_data[ceilN - 1] = 0;
+
+            //for (int d = 0; d < ceil; d++) { start at end instead
+            for (int d = ceil - 1; d >= 0; d--){
             	pow = 1 << d;
             	pow1 = 1 << (d + 1);
             	blocksPerGrid = (ceilN / pow1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
-            	kernDownSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_idata);
+            	kernDownSweep<<< blocksPerGrid, BLOCK_SIZE >>>(ceilN, pow, pow1, dev_data);
             }
             timer().endGpuTimer();
 
-            cudaMemcpy(odata, dev_idata, n * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_data, n * sizeof(int), cudaMemcpyDeviceToHost);
 
-            cudaFree(dev_idata);
-            cudaFree(dev_odata);
+            cudaFree(dev_data);
         }
 
         /**
