@@ -125,7 +125,22 @@ namespace StreamCompaction {
             Common::kernScatter<<< blocksPerGrid, BLOCK_SIZE >>>(n, dev_scatter, dev_input, dev_bools, dev_indices);
             timer().endGpuTimer();
 
-            return host_indices[n-1];
+            // Copy to output
+            cudaMemcpy(odata, dev_scatter, n * sizeof(int), cudaMemcpyDeviceToHost);
+
+            // Memory cleanup
+            cudaFree(dev_bools);
+            cudaFree(dev_indices);
+            cudaFree(dev_scatter);
+            cudaFree(dev_input);
+
+            // Beware! Since exclusive scan, we won't count last element in
+            // indices, let's fix that
+            if (host_bools[n - 1] != 0) {
+            	return host_indices[n - 1] + 1;
+            } else {
+            	return host_indices[n-1];
+            }
         }
     }
 }
